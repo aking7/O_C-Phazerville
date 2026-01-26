@@ -29,6 +29,7 @@
 #include "applets/Calculate.h"
 #include "applets/Calibr8.h"
 #include "applets/Carpeggio.h"
+#include "applets/ChordVoicer.h"
 #include "applets/Chordinator.h"
 #include "applets/ClockDivider.h"
 #include "applets/ClkToGate.h"
@@ -220,6 +221,7 @@ AppletRegistry reg{
     DeclareApplet<WTVCO>{67, 0x80},
 #endif
     DeclareApplet<Xfader>{33, 0x10},
+    DeclareApplet<ChordVoicer>{89, 0x08},
 };
 
 
