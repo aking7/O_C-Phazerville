@@ -368,8 +368,8 @@ const char * const clear_mode_names[] = {
 
 // TOTAL EEPROM SIZE: 6 bytes
 SETTINGS_DECLARE(AutomatonnetzState, GRID_SETTING_LAST) {
-  {8, 0, num_clock_fractions*GRID_DIMENSION - 1, "dx", NULL, settings::STORAGE_TYPE_I16},
-  {4, 0, num_clock_fractions*GRID_DIMENSION - 1, "dy", NULL, settings::STORAGE_TYPE_I16},
+  {8, 0, num_clock_fractions*GRID_DIMENSION - 1, "dx", NULL, settings::STORAGE_TYPE_I8},
+  {4, 0, num_clock_fractions*GRID_DIMENSION - 1, "dy", NULL, settings::STORAGE_TYPE_I8},
   {MODE_MAJOR, 0, MODE_LAST-1, "Mode", mode_names, settings::STORAGE_TYPE_U8},
   #ifdef NORTHERNLIGHT
   {0, 0, 7, "Oct", NULL, settings::STORAGE_TYPE_I8},
