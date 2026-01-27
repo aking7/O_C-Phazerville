@@ -84,6 +84,7 @@
 #include "applets/Squanch.h"
 #include "applets/Stairs.h"
 #include "applets/Strum.h"
+#include "applets/SubH.h"
 #include "applets/Switch.h"
 #include "applets/SwitchSeq.h"
 #include "applets/TB3PO.h"
@@ -202,6 +203,7 @@ AppletRegistry reg{
     DeclareApplet<Squanch>{46, 0x08},
     DeclareApplet<Stairs>{61, 0x01},
     DeclareApplet<Strum>{74, 0x08},
+    DeclareApplet<SubH>{89, 0x0a},
     DeclareApplet<Switch>{3, 0x10},
     DeclareApplet<SwitchSeq>{38, 0x10},
     DeclareApplet<TB_3PO>{60, 0x02},
