@@ -4,7 +4,6 @@
 #include "OC_gpio.h"
 #include "HSUtils.h"
 #include "HSIOFrame.h"
-#include "SubHLinker.h"
 
 #ifdef ARDUINO_TEENSY41
 #include "SD.h"
@@ -53,12 +52,6 @@ namespace HS {
   };
 
   OC::menu::ScreenCursor<5> showhide_cursor;
-
-} // namespace HS
-
-SubHLinker *SubHLinker::instance = 0;
-
-namespace HS {
 
   FLASHMEM
   void Init() {
