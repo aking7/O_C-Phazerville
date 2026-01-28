@@ -74,12 +74,31 @@
 
 // TODO Better selection, e.g. .125, .15 .2 or 3 digits with encoder acceleration
 
+static const int num_clock_fractions = 17;
 const size_t clock_fraction[] = {
-  0, CLOCK_STEP_RES/8, 1+CLOCK_STEP_RES/7, CLOCK_STEP_RES/6, 1+CLOCK_STEP_RES/5, 1+CLOCK_STEP_RES/4, 1+CLOCK_STEP_RES/3, CLOCK_STEP_RES/2
+  0,
+  1 + CLOCK_STEP_RES / 64,
+  1 + CLOCK_STEP_RES / 32,
+  1 + CLOCK_STEP_RES / 24,
+  1 + CLOCK_STEP_RES / 16,
+  1 + CLOCK_STEP_RES / 12,
+  1 + CLOCK_STEP_RES / 10,
+  1 + CLOCK_STEP_RES / 9,
+  1 + CLOCK_STEP_RES / 8,
+  1 + (CLOCK_STEP_RES * 3) / 16,
+  1 + CLOCK_STEP_RES / 7,
+  1 + CLOCK_STEP_RES / 6,
+  1 + CLOCK_STEP_RES / 5,
+  1 + CLOCK_STEP_RES / 4,
+  1 + CLOCK_STEP_RES / 3,
+  1 + (CLOCK_STEP_RES * 3) / 8,
+  CLOCK_STEP_RES / 2
 };
 
 const char *clock_fraction_names[] = {
-  " \0\0\0\0", "  1/8", "  1/7", "  1/6", "  1/5", "  1/4", "  1/3", "  1/2"
+  " \0\0\0\0", " 1/64", " 1/32", " 1/24", " 1/16", " 1/12", " 1/10",
+  "  1/9", "  1/8", " 3/16", "  1/7", "  1/6", "  1/5", "  1/4",
+  "  1/3", "  3/8", "  1/2"
 };
 
 static constexpr uint32_t TRIGGER_MASK_GRID = OC::DIGITAL_INPUT_1_MASK;
@@ -243,12 +262,12 @@ public:
 
   size_t dx() const {
     const int value = values_[GRID_SETTING_DX];
-    return ((value / 8) * CLOCK_STEP_RES) + clock_fraction[value % 8];
+    return ((value / num_clock_fractions) * CLOCK_STEP_RES) + clock_fraction[value % num_clock_fractions];
   }
 
   size_t dy() const {
     const int value = values_[GRID_SETTING_DY];
-    return ((value / 8) * CLOCK_STEP_RES) + clock_fraction[value % 8];
+    return ((value / num_clock_fractions) * CLOCK_STEP_RES) + clock_fraction[value % num_clock_fractions];
   }
 
   EMode mode() const {
@@ -349,8 +368,8 @@ const char * const clear_mode_names[] = {
 
 // TOTAL EEPROM SIZE: 6 bytes
 SETTINGS_DECLARE(AutomatonnetzState, GRID_SETTING_LAST) {
-  {8, 0, 8*GRID_DIMENSION - 1, "dx", NULL, settings::STORAGE_TYPE_I8},
-  {4, 0, 8*GRID_DIMENSION - 1, "dy", NULL, settings::STORAGE_TYPE_I8},
+  {8, 0, num_clock_fractions*GRID_DIMENSION - 1, "dx", NULL, settings::STORAGE_TYPE_I8},
+  {4, 0, num_clock_fractions*GRID_DIMENSION - 1, "dy", NULL, settings::STORAGE_TYPE_I8},
   {MODE_MAJOR, 0, MODE_LAST-1, "Mode", mode_names, settings::STORAGE_TYPE_U8},
   #ifdef NORTHERNLIGHT
   {0, 0, 7, "Oct", NULL, settings::STORAGE_TYPE_I8},
@@ -572,8 +591,8 @@ void draw_grid_menu() {
     const settings::value_attr &attr = AutomatonnetzState::value_attr(current);
 
     if (current <= GRID_SETTING_DY) {
-      const int integral = value / 8;
-      const int fraction = value % 8;
+      const int integral = value / num_clock_fractions;
+      const int fraction = value % num_clock_fractions;
       char value_str[6];
       memcpy(value_str, clock_fraction_names[fraction], 6);
       if (integral || !fraction)
@@ -683,6 +702,7 @@ void Automatonnetz_handleAppEvent(OC::AppEvent event) {
   switch (event) {
     case OC::APP_EVENT_RESUME:
       OC::ui.encoder_enable_acceleration(OC::CONTROL_ENCODER_L, false);
+      OC::ui.encoder_enable_acceleration(OC::CONTROL_ENCODER_R, true);
       automatonnetz_state.AddUserAction(USER_ACTION_RESET);
       break;
     case OC::APP_EVENT_SUSPEND:
