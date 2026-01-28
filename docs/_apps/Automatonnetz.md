@@ -46,6 +46,8 @@ The implementation computes these in a single transform step however, not sequen
 
 ### Grid settings
 
+The `dx` and `dy` settings have a wide range of clock fractions available, from 1/64 to 1/2.
+
 | Setting | Meaning                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dx`    | Amount of movement along x-axis (horizontal) per clock input                                                                                                                                                                                                                                                                                                                                                |
