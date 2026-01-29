@@ -83,19 +83,23 @@ class LorenzGenerator {
   }
 
  
-  inline void set_rho1(int16_t rho) {
-    // rho1_ = ((double)(rho) * (1 << 13)) + 24.0 * (1 << 24) ; // was 12
-    // c1_ = (double)(rho + (6 << 3)) * (1 << 13) ; // was 13
-    rho1_ = (rho * (1 << 13)) + 24.0 * (1 << 24) ; // was 12
-    c1_ = (rho + (6 << 3)) * (1 << 13) ; // was 13
-  }
+  inline void set_rho1(int16_t rho) { rho1_ = (rho * (1 << 13)) + (24.0 * (1 << 24)); }
+  inline void set_rho2(int16_t rho) { rho2_ = (rho * (1 << 13)) + (24.0 * (1 << 24)); }
 
-  inline void set_rho2(int16_t rho) {
-    // rho2_ = ((double)(rho) * (1 << 13)) + 24.0 * (1 << 24) ; // was 12
-    // c2_ = (double)(rho + (6 << 3)) * (1 << 13) ; // was 13
-    rho2_ = (rho * (1 << 13)) + 24.0 * (1 << 24) ; // was 12
-    c2_ = (rho + (6 << 3)) * (1 << 13) ; // was 13
-  }
+  inline void set_sigma1(int16_t sigma) { sigma1_ = (sigma * (1 << 13)) + (10.0 * (1 << 24)); }
+  inline void set_sigma2(int16_t sigma) { sigma2_ = (sigma * (1 << 13)) + (10.0 * (1 << 24)); }
+
+  inline void set_beta1(int16_t beta) { beta1_ = (beta * (1 << 13)) + (8.0 / 3.0 * (1 << 24)); }
+  inline void set_beta2(int16_t beta) { beta2_ = (beta * (1 << 13)) + (8.0 / 3.0 * (1 << 24)); }
+
+  inline void set_a1(int16_t a) { a1_ = (a * (1 << 13)) + (0.1 * (1 << 24)); }
+  inline void set_a2(int16_t a) { a2_ = (a * (1 << 13)) + (0.1 * (1 << 24)); }
+
+  inline void set_b1(int16_t b) { b1_ = (b * (1 << 13)) + (0.1 * (1 << 24)); }
+  inline void set_b2(int16_t b) { b2_ = (b * (1 << 13)) + (0.1 * (1 << 24)); }
+
+  inline void set_c1(int16_t c) { c1_ = (c * (1 << 13)) + (5.75 * (1 << 24)); }
+  inline void set_c2(int16_t c) { c2_ = (c * (1 << 13)) + (5.75 * (1 << 24)); }
 
   inline void set_out_a(uint8_t out_a) {
     out_a_ = out_a;
@@ -125,13 +129,19 @@ class LorenzGenerator {
 
   uint8_t out_a_, out_b_, out_c_, out_d_ ;
 
-  int64_t sigma_, rho1_, rho2_, beta_, c1_,  c2_ ;
+  int64_t sigma1_, sigma2_, rho1_, rho2_, beta1_, beta2_, c1_, c2_, a1_, a2_, b1_, b2_;
   
   // O+C
   uint16_t dac_code_[kNumChannels];
  
   uint8_t index_;
   
+  static void Lorenz(int32_t &x, int32_t &y, int32_t &z, int64_t rho, int64_t sigma, int64_t beta, int64_t dt);
+  static void Rossler(int32_t &x, int32_t &y, int32_t &z, int64_t c, int64_t a, int64_t b, int64_t dt);
+  static void ScaleLorenz(int32_t x, int32_t y, int32_t z, int32_t &x_scaled, int32_t &y_scaled, int32_t &z_scaled);
+  static void ScaleRossler(int32_t x, int32_t y, int32_t z, int32_t &x_scaled, int32_t &y_scaled, int32_t &z_scaled);
+  void DetermineActiveGenerators(bool &lorenz1, bool &rossler1, bool &lorenz2, bool &rossler2) const;
+
   DISALLOW_COPY_AND_ASSIGN(LorenzGenerator);
 };
 
