@@ -41,14 +41,133 @@ namespace streams {
 
 // using namespace stmlib;
 
-const int64_t sigma = 10.0 * (1 << 24);
-//const int64_t rho = 28.0 * (1 << 24);
-const int64_t beta = 8.0 / 3.0 * (1 << 24);
+// The Lorenz attractor is a system of three ordinary differential equations
+// that exhibits chaotic behavior, famously shaped like a butterfly's wings.
+//
+// dx/dt = sigma * (y - x)
+// dy/dt = x * (rho - z) - y
+// dz/dt = x * y - beta * z
+//
+// How the parameters affect the shape:
+//
+// sigma: Controls the "viscosity" of the system. Changing it can make the
+//        wings of the butterfly attractor wider or narrower.
+// rho:   This is the main parameter for chaos. At low values, the output is
+//        a simple loop. As rho increases past ~24.74, the output splits into
+//        the iconic two "wings," and the path becomes chaotic and unpredictable.
+//        Higher values tend to make the attractor larger and more stretched out.
+// beta:  Affects the size and symmetry of the wings. Changing beta can make
+//        one wing larger or smaller than the other.
+void LorenzGenerator::Lorenz(int32_t &x, int32_t &y, int32_t &z, int64_t rho, int64_t sigma, int64_t beta, int64_t dt) {
+  int32_t new_x = x + (dt * ((sigma * (y - x)) >> 24) >> 24);
+  int32_t new_y = y + (dt * ((x * (rho - z) >> 24) - y) >> 24);
+  int32_t new_z = z + (dt * ((x * int64_t(y) >> 24) - (beta * z >> 24)) >> 24);
+  x = new_x;
+  y = new_y;
+  z = new_z;
+}
 
-// Rossler constants
-const int64_t a = 0.1 * (1 << 24);
-const int64_t b = 0.1 * (1 << 24);
-// const int64_t c = 13.0 * (1 << 24);
+// The Rössler attractor is a simpler system of three differential equations
+// that also exhibits chaotic behavior. Its shape is a distinct spiral that
+// gets pulled outwards and then folded back on itself.
+//
+// dx/dt = -y - z
+// dy/dt = x + a * y
+// dz/dt = b + z * (x - c)
+//
+// How the parameters affect the shape:
+//
+// a: Controls the "roundness" of the spiral. Smaller values (like 0.1)
+//    create a very circular, uniform spiral. Larger values make it more
+//    "peaky" or eccentric.
+// b: Controls how much the spiral is "lifted" up along the z-axis on each
+//    rotation. Small values keep it relatively flat, while larger values
+//    create a taller, more dramatic spiral.
+// c: This is the primary chaos control. At low values, the output is a simple
+//    circular loop. As 'c' increases, the loop starts to get wider and then
+//    begins to fold over on itself, creating the chaotic behavior. Higher
+//    values of 'c' lead to more complex folding and a more "noisy" appearance.
+void LorenzGenerator::Rossler(int32_t &x, int32_t &y, int32_t &z, int64_t c, int64_t a, int64_t b, int64_t dt) {
+  int32_t new_x = x + ((dt * (-y - z)) >> 24);
+  int32_t new_y = y + ((dt * (x + ((a * y) >> 24))) >> 24);
+  int32_t new_z = z + ((dt * (b + ((z * (x - c)) >> 24))) >> 24);
+  x = new_x;
+  y = new_y;
+  z = new_z;
+}
+
+void LorenzGenerator::ScaleLorenz(int32_t x, int32_t y, int32_t z, int32_t &x_scaled, int32_t &y_scaled, int32_t &z_scaled) {
+  x_scaled = ((x * 3) >> 16) + 32769;
+  y_scaled = ((y * 3) >> 16) + 32769;
+  z_scaled = ((z * 3) >> 16);
+}
+
+void LorenzGenerator::ScaleRossler(int32_t x, int32_t y, int32_t z, int32_t &x_scaled, int32_t &y_scaled, int32_t &z_scaled) {
+  x_scaled = (x >> 14) + 32769;
+  y_scaled = (y >> 14) + 32769;
+  z_scaled = (z >> 14);
+}
+
+void LorenzGenerator::DetermineActiveGenerators(bool &lorenz1, bool &rossler1, bool &lorenz2, bool &rossler2) const {
+  lorenz1 = false;
+  rossler1 = false;
+  lorenz2 = false;
+  rossler2 = false;
+
+  uint8_t outputs[4] = {out_a_, out_b_, out_c_, out_d_};
+  for (int i = 0; i < 4; ++i) {
+    switch (outputs[i]) {
+      case LORENZ_OUTPUT_X1:
+      case LORENZ_OUTPUT_Y1:
+      case LORENZ_OUTPUT_Z1:
+      case LORENZ_OUTPUT_LX1_XOR_LY1:
+        lorenz1 = true;
+        break;
+
+      case LORENZ_OUTPUT_X2:
+      case LORENZ_OUTPUT_Y2:
+      case LORENZ_OUTPUT_Z2:
+        lorenz2 = true;
+        break;
+
+      case ROSSLER_OUTPUT_X1:
+      case ROSSLER_OUTPUT_Y1:
+      case ROSSLER_OUTPUT_Z1:
+        rossler1 = true;
+        break;
+
+      case ROSSLER_OUTPUT_X2:
+      case ROSSLER_OUTPUT_Y2:
+      case ROSSLER_OUTPUT_Z2:
+        rossler2 = true;
+        break;
+
+      case LORENZ_OUTPUT_LX1_PLUS_RX1:
+      case LORENZ_OUTPUT_LX1_XOR_RX1:
+      case LORENZ_OUTPUT_LX1_PLUS_RZ1:
+        lorenz1 = true;
+        rossler1 = true;
+        break;
+
+      case LORENZ_OUTPUT_LX1_PLUS_LY2:
+      case LORENZ_OUTPUT_LX1_PLUS_LZ2:
+      case LORENZ_OUTPUT_LX1_XOR_LX2:
+        lorenz1 = true;
+        lorenz2 = true;
+        break;
+
+      case LORENZ_OUTPUT_LX1_PLUS_RX2:
+      case LORENZ_OUTPUT_LX1_XOR_RX2:
+      case LORENZ_OUTPUT_LX1_PLUS_RZ2:
+        lorenz1 = true;
+        rossler2 = true;
+        break;
+
+      case LORENZ_OUTPUT_LAST:
+        break;
+    }
+  }
+}
 
 void LorenzGenerator::Init(uint8_t index) {
   if (index) {
@@ -58,6 +177,12 @@ void LorenzGenerator::Init(uint8_t index) {
     Rx2_ = 0.1 * (1 << 24);
     Ry2_ = 0;
     Rz2_ = 0;
+    set_sigma2(0);
+    set_beta2(0);
+    set_a2(0);
+    set_b2(0);
+    set_c2(0);
+    set_rho2(0);
   } else {
     Lx1_ = 0.1 * (1 << 24);
     Ly1_ = 0;
@@ -65,6 +190,12 @@ void LorenzGenerator::Init(uint8_t index) {
     Rx1_ = 0.1 * (1 << 24);
     Ry1_ = 0;
     Rz1_ = 0;
+    set_sigma1(0);
+    set_beta1(0);
+    set_a1(0);
+    set_b1(0);
+    set_c1(0);
+    set_rho1(0);
   }
 }
 
@@ -85,53 +216,53 @@ void LorenzGenerator::Process(
   if (reset1) Init(0) ;
   if (reset2) Init(1) ; 
 
-  // yes, yes, these should be functions...
-  // Lorenz 1
-  int64_t Ldt1 = static_cast<int64_t>(lut_lorenz_rate[rate1] >> (5 - freq_range1)); // was 5
-  int32_t Lx1 = Lx1_ + (Ldt1 * ((sigma * (Ly1_ - Lx1_)) >> 24) >> 24);
-  int32_t Ly1 = Ly1_ + (Ldt1 * ((Lx1_ * (rho1_ - Lz1_) >> 24) - Ly1_) >> 24);
-  int32_t Lz1 = Lz1_ + (Ldt1 * ((Lx1_ * int64_t(Ly1_) >> 24) - (beta * Lz1_ >> 24)) >> 24); 
-  Lx1_ = Lx1;
-  Ly1_ = Ly1;
-  Lz1_ = Lz1; 
-  int32_t Lz1_scaled = ((Lz1 * 3) >> 16);
-  int32_t Lx1_scaled = ((Lx1 * 3) >> 16) + 32769;
-  int32_t Ly1_scaled = ((Ly1 * 3) >> 16) + 32769;
-  // Rossler 1
+  // --- State updates ---
+  int64_t Ldt1 = static_cast<int64_t>(lut_lorenz_rate[rate1] >> (5 - freq_range1));
+  Lorenz(Lx1_, Ly1_, Lz1_, rho1_, sigma1_, beta1_, Ldt1);
+
   int64_t Rdt1 = static_cast<int64_t>(lut_lorenz_rate[rate1] >> 0);
-  int32_t Rx1 = Rx1_ + ((Rdt1 * (-Ry1_ - Rz1_ )) >> 24);
-  int32_t Ry1 = Ry1_ + ((Rdt1 * (Rx1_ + ((a * Ry1_) >> 24))) >> 24);
-  int32_t Rz1 = Rz1_ + ((Rdt1 * (b + ((Rz1_ * (Rx1_ - c1_)) >> 24)))  >> 24);
-  Rx1_ = Rx1;
-  Ry1_ = Ry1;
-  Rz1_ = Rz1; 
-  int32_t Rz1_scaled = (Rz1 >> 14);
-  int32_t Rx1_scaled = (Rx1 >> 14) + 32769;
-  int32_t Ry1_scaled = (Ry1 >> 14) + 32769;
+  Rossler(Rx1_, Ry1_, Rz1_, c1_, a1_, b1_, Rdt1);
 
-  // Lorenz 2
-  int64_t Ldt2 = static_cast<int64_t>(lut_lorenz_rate[rate2] >> (5 - freq_range2)); // was 5
-  int32_t Lx2 = Lx2_ + (Ldt2 * ((sigma * (Ly2_ - Lx2_)) >> 24) >> 24);
-  int32_t Ly2 = Ly2_ + (Ldt2 * ((Lx2_ * (rho2_ - Lz2_) >> 24) - Ly2_) >> 24);
-  int32_t Lz2 = Lz2_ + (Ldt2 * ((Lx2_ * int64_t(Ly2_) >> 24) - (beta * Lz2_ >> 24)) >> 24); 
-  Lx2_ = Lx2;
-  Ly2_ = Ly2;
-  Lz2_ = Lz2; 
-  int32_t Lz2_scaled = ((Lz2 * 3) >> 16);
-  int32_t Lx2_scaled = ((Lx2 * 3) >> 16) + 32769;
-  int32_t Ly2_scaled = ((Ly2 * 3) >> 16) + 32769;
-  // Rossler 2
+  int64_t Ldt2 = static_cast<int64_t>(lut_lorenz_rate[rate2] >> (5 - freq_range2));
+  Lorenz(Lx2_, Ly2_, Lz2_, rho2_, sigma2_, beta2_, Ldt2);
+
   int64_t Rdt2 = static_cast<int64_t>(lut_lorenz_rate[rate2] >> 0);
-  int32_t Rx2 = Rx2_ + ((Rdt2 * (-Ry2_ - Rz2_ )) >> 24);
-  int32_t Ry2 = Ry2_ + ((Rdt2 * (Rx2_ + ((a * Ry2_) >> 24))) >> 24);
-  int32_t Rz2 = Rz2_ + ((Rdt2 * (b + ((Rz2_ * (Rx2_ - c2_)) >> 24)))  >> 24);
-  Rx2_ = Rx2;
-  Ry2_ = Ry2;
-  Rz2_ = Rz2; 
-  int32_t Rz2_scaled = (Rz2 >> 14);
-  int32_t Rx2_scaled = (Rx2 >> 14) + 32769;
-  int32_t Ry2_scaled = (Ry2 >> 14) + 32769;
+  Rossler(Rx2_, Ry2_, Rz2_, c2_, a2_, b2_, Rdt2);
 
+  // --- Scaling ---
+  // For performance, we only calculate the scaled output values for a given
+  // generator if one of its outputs (X, Y, or Z) is currently assigned to one
+  // of the four DAC channels. This avoids redundant calculations while ensuring
+  // the underlying state of the generator is always continuous.
+
+  bool lorenz1_active, rossler1_active, lorenz2_active, rossler2_active;
+  DetermineActiveGenerators(lorenz1_active, rossler1_active, lorenz2_active, rossler2_active);
+
+  int32_t Lz1_scaled = 0;
+  int32_t Lx1_scaled = 0;
+  int32_t Ly1_scaled = 0;
+  if (lorenz1_active)
+    ScaleLorenz(Lx1_, Ly1_, Lz1_, Lx1_scaled, Ly1_scaled, Lz1_scaled);
+
+  int32_t Rz1_scaled = 0;
+  int32_t Rx1_scaled = 0;
+  int32_t Ry1_scaled = 0;
+  if (rossler1_active)
+    ScaleRossler(Rx1_, Ry1_, Rz1_, Rx1_scaled, Ry1_scaled, Rz1_scaled);
+
+  int32_t Lz2_scaled = 0;
+  int32_t Lx2_scaled = 0;
+  int32_t Ly2_scaled = 0;
+  if (lorenz2_active)
+    ScaleLorenz(Lx2_, Ly2_, Lz2_, Lx2_scaled, Ly2_scaled, Lz2_scaled);
+
+  int32_t Rz2_scaled = 0;
+  int32_t Rx2_scaled = 0;
+  int32_t Ry2_scaled = 0;
+  if (rossler2_active)
+    ScaleRossler(Rx2_, Ry2_, Rz2_, Rx2_scaled, Ry2_scaled, Rz2_scaled);
+
+  // --- Output mapping ---
   uint8_t out_channel ;
   
   for (uint8_t i = 0; i < 4; ++i) {
