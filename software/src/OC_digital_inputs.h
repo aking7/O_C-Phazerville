@@ -127,10 +127,17 @@ public:
     auto activated = LOW;
 #endif
     switch (input) {
+#if defined(__IMXRT1062__)
+      case DIGITAL_INPUT_1: return (digitalReadFast(TR1) == activated);
+      case DIGITAL_INPUT_2: return (digitalReadFast(TR2) == activated);
+      case DIGITAL_INPUT_3: return (digitalReadFast(TR3) == activated);
+      case DIGITAL_INPUT_4: return (digitalReadFast(TR4) == activated);
+#else
       case DIGITAL_INPUT_1: return (digitalRead(TR1) == activated);
       case DIGITAL_INPUT_2: return (digitalRead(TR2) == activated);
       case DIGITAL_INPUT_3: return (digitalRead(TR3) == activated);
       case DIGITAL_INPUT_4: return (digitalRead(TR4) == activated);
+#endif
       case DIGITAL_INPUT_LAST: break;
     }
     return false;
