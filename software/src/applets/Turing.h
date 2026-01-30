@@ -1,4 +1,6 @@
-// Copyright (c) 2024, Phazerville
+#include "util/util_turing.h"
+
+// Copyright (c) 2018, Chysn
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,10 +35,7 @@ public:
     }
 
     void Start() {
-        // Initialize default values
-        probability = 50;
-        length = 16;
-        shift_register = 0;
+        turing.Init();
         cursor = 0;
     }
 
@@ -46,24 +45,10 @@ public:
         {
             if (Clock(ch))
             {
-                // Get the current bit (MSB)
-                bool current_bit = (shift_register >> (length - 1)) & 1;
-
-                // Output the CV for the current bit
+                turing.Clock();
+                bool current_bit = turing.get_LSB();
                 Out(ch, current_bit ? HEMISPHERE_MAX_CV : 0);
                 GateOut(ch, current_bit);
-
-                // Decide whether to flip the bit based on probability
-                if (random(1, 100) <= probability) {
-                    current_bit = !current_bit;
-                }
-
-                // Shift the register
-                shift_register = (shift_register << 1) | current_bit;
-
-                // Create a mask to keep the register within the desired length
-                uint16_t mask = (1 << length) - 1;
-                shift_register &= mask;
             }
         }
     }
@@ -80,24 +65,26 @@ public:
 
         switch (cursor) {
             case PROBABILITY:
-                probability = constrain(probability + direction, 0, 100);
+                turing.set_probability(constrain(turing.probability() + direction, 0, 255));
                 break;
             case LENGTH:
-                length = constrain(length + direction, 1, 16);
+                turing.set_length(constrain(turing.length() + direction, 2, 32));
                 break;
         }
     }
 
     uint64_t OnDataRequest() {
         uint64_t data = 0;
-        Pack(data, PackLocation {0, 7}, probability);
-        Pack(data, PackLocation {7, 5}, length);
+        Pack(data, PackLocation {0, 32}, turing.get_shift_register());
+        Pack(data, PackLocation {32, 8}, turing.probability());
+        Pack(data, PackLocation {40, 5}, turing.length());
         return data;
     }
 
     void OnDataReceive(uint64_t data) {
-        probability = Unpack(data, PackLocation {0, 7});
-        length = Unpack(data, PackLocation {7, 5});
+        turing.set_shift_register(Unpack(data, PackLocation {0, 32}));
+        turing.set_probability(Unpack(data, PackLocation {32, 8}));
+        turing.set_length(Unpack(data, PackLocation {40, 5}));
     }
 
 protected:
@@ -112,28 +99,26 @@ protected:
 
 private:
     int cursor;
-    uint8_t probability;
-    uint8_t length;
-    uint16_t shift_register;
+    util::TuringShiftRegister turing;
 
     void DrawInterface() {
         // Probability
         gfxPrint(1, 15, "P:");
-        gfxPrint(15, 15, probability);
-        gfxPrint("%");
-        gfxCursor(15, 23, 18);
+        gfxPrint(15, 15, turing.probability());
+        if (cursor == PROBABILITY) gfxCursor(15, 23, 18);
 
         // Length
         gfxPrint(33, 15, "L:");
-        gfxPrint(47, 15, length);
-        gfxCursor(47, 23, 12);
+        gfxPrint(47, 15, turing.length());
+        if (cursor == LENGTH) gfxCursor(47, 23, 12);
 
         // Shift Register
-        for (int i = 0; i < length; i++) {
-            if ((shift_register >> i) & 1) {
-                gfxRect(62 - (i * 4), 40, 3, 3);
+        uint32_t reg = turing.get_shift_register();
+        for (int i = 0; i < turing.length(); i++) {
+            if ((reg >> i) & 1) {
+                gfxRect(62 - (i * 2), 40, 2, 5);
             } else {
-                gfxFrame(62 - (i * 4), 40, 3, 3);
+                gfxFrame(62 - (i * 2), 40, 2, 5);
             }
         }
     }
