@@ -113,13 +113,6 @@ private:
         if (cursor == LENGTH) gfxCursor(47, 23, 12);
 
         // Shift Register
-        uint32_t reg = turing.get_shift_register();
-        for (int i = 0; i < turing.length(); i++) {
-            if ((reg >> i) & 1) {
-                gfxRect(62 - (i * 2), 40, 2, 5);
-            } else {
-                gfxFrame(62 - (i * 2), 40, 2, 5);
-            }
-        }
+        menu::DrawMask<true, 32, 8, 1>(62, 40, turing.get_shift_register(), turing.length());
     }
 };
