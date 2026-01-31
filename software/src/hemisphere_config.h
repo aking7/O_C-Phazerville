@@ -92,6 +92,7 @@
 #include "applets/TrigSeq.h"
 #include "applets/TrigSeq16.h"
 #include "applets/Tuner.h"
+#include "applets/Turing.h"
 #include "applets/VectorEG.h"
 #include "applets/VectorLFO.h"
 #include "applets/VectorMod.h"
@@ -210,6 +211,7 @@ AppletRegistry reg{
     DeclareApplet<TrigSeq>{11, 0x06},
     DeclareApplet<TrigSeq16>{25, 0x06},
     DeclareApplet<Tuner>{39, 0x80},
+    DeclareApplet<Turing>{89, 0x02},
     DeclareApplet<TwoRings>{18, 0x02},
     DeclareApplet<VectorEG>{52, 0x01},
     DeclareApplet<VectorLFO>{49, 0x01},

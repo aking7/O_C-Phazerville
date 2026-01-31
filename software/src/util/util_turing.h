@@ -79,8 +79,16 @@ public:
     probability_ = probability;
   }
 
+  uint8_t probability() const {
+    return probability_;
+  }
+
   uint32_t get_shift_register() const {
     return shift_register_;
+  }
+
+  void set_shift_register(uint32_t sr) {
+    shift_register_ = sr;
   }
 
   bool get_LSB() const {
