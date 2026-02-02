@@ -56,13 +56,11 @@ public:
 		gatedb = MIN_DB;
 		compdb = MIN_DB;
 		limitdb = MIN_DB;
-		invSampleBufferSize = 1.0f / (float)sampleBufferSize;
 	}
 
 	void Acquire() {
 		samplesSquared = new uint32_t[sampleBufferSize];
 		std::fill_n(samplesSquared, sampleBufferSize, 0);
-		invSampleBufferSize = 1.0f / (float)sampleBufferSize;
 	}
 
 	void Release() {
@@ -188,10 +186,10 @@ private:
 	float aOneMinusLimitAttack;
 	float aLimitRelease;
 	const static unsigned int sampleBufferSize = AUDIO_SAMPLE_RATE / 10; // number of samples to use for running RMS calulation = 1/10th of a second
+	static constexpr float invSampleBufferSize = 1.0f / (float)sampleBufferSize;
 	uint64_t sumOfSamplesSquared = 0;
 	uint32_t* samplesSquared;
 	uint16_t sampleIndex = 0;
-	float invSampleBufferSize;
 
 	void computeMakeupGain() {
 		if (mgAutoEnabled) {
