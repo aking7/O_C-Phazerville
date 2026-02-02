@@ -144,19 +144,20 @@ void AudioEffectDynamics::update(void) {
 
 	for (int i=0; i<AUDIO_BLOCK_SAMPLES; i++) {
 
-        unsigned int sampleIndexPlus1 = (sampleIndex + 1) % sampleBufferSize;
+        unsigned int sampleIndexNext = sampleIndex + 1;
+        if (sampleIndexNext >= sampleBufferSize) sampleIndexNext = 0;
 
-        uint32_t sampleToRemove = samplesSquared[sampleIndexPlus1];
-        sumOfSamplesSquared -= (sampleToRemove * sampleToRemove);
+        uint32_t sampleSquaredToRemove = samplesSquared[sampleIndexNext];
+        sumOfSamplesSquared -= sampleSquaredToRemove;
 
         int16_t sample = block->data[i];
-        samplesSquared[sampleIndex] = abs(sample);
-        uint32_t sampleSquared = sample * sample;
+        uint32_t sampleSquared = (uint32_t)((int32_t)sample * (int32_t)sample);
+        samplesSquared[sampleIndex] = sampleSquared;
         sumOfSamplesSquared += sampleSquared;
 
-        sampleIndex = (sampleIndex + 1) % sampleBufferSize;
+        sampleIndex = sampleIndexNext;
 
-        float rms = sqrt(sumOfSamplesSquared / float(sampleBufferSize)) / 32768.0;
+        float rms = sqrtf((float)sumOfSamplesSquared * invSampleBufferSize) * (1.0f / 32768.0f);
 
         //Compute block RMS level in Db
         float inputdb = MIN_DB;
