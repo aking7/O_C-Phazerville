@@ -28,12 +28,14 @@ public:
         ROOT,
         CHORD,
         INVERSION,
+        SLEW,
         PAGE,
-        SEQ_PROB,
+        STAY,
+        DEJAVU,
+        BRANCH,
         LOOP_LEN,
         LOOP_LOCK,
-        SLEW,
-        LAST_SETTING = SLEW
+        LAST_SETTING = LOOP_LOCK
     };
 
     const char* applet_name() {
@@ -48,6 +50,9 @@ public:
         if (!linker.IsLinked()) {
             linker.scale = GetScale(0);
             linker.root_note = GetRootNote(0);
+            linker.stay_prob = 80;
+            linker.dejavu = 0;
+            linker.branch_prob = 50;
         }
 
         for(int i=0; i<2; ++i) current_cv[i] = 0;
@@ -70,8 +75,9 @@ public:
         int inv_cv = Proportion(DetentedIn(1), HEMISPHERE_MAX_INPUT_CV, 4);
 
         if (Clock(0)) {
+            // Only the "primary" registered side advances the shared sequencer
             if (!linker.registered[0] || hemisphere == 0) {
-                AdvanceSequencer();
+                linker.AdvanceSequencer();
             }
         }
 
@@ -85,7 +91,7 @@ public:
         // Efficiency: Only update divisions if state has changed
         if (current_chord != last_chord || current_inv != last_inv ||
             linker.scale != last_scale || linker.root_note != last_root) {
-            UpdateSubharmonics(current_chord, current_inv);
+            linker.UpdateSubharmonics(current_chord, current_inv);
             last_chord = current_chord;
             last_inv = current_inv;
             last_scale = linker.scale;
@@ -97,6 +103,7 @@ public:
             if (slew_amount == 0) {
                 current_cv[ch] = target;
             } else {
+                // Smoothly morph to target
                 int32_t s = slew_amount;
                 current_cv[ch] = (current_cv[ch] * (256 - s) + target * s) >> 8;
             }
@@ -137,8 +144,14 @@ public:
         case INVERSION:
             linker.inversion = (linker.inversion + direction + 4) % 4;
             break;
-        case SEQ_PROB:
-            prob_stay = constrain(prob_stay + direction, 0, 100);
+        case STAY:
+            linker.stay_prob = constrain(linker.stay_prob + direction, 0, 100);
+            break;
+        case DEJAVU:
+            linker.dejavu = constrain(linker.dejavu + direction, 0, 100);
+            break;
+        case BRANCH:
+            linker.branch_prob = constrain(linker.branch_prob + direction, 0, 100);
             break;
         case LOOP_LEN:
             linker.loop_length = constrain(linker.loop_length + direction, 1, 32);
@@ -154,13 +167,15 @@ public:
     uint64_t OnDataRequest() {
         uint64_t data = 0;
         Pack(data, PackLocation{0, 8}, linker.scale);
-        Pack(data, PackLocation{8, 4}, linker.root_note);
-        Pack(data, PackLocation{12, 3}, linker.chord_index);
-        Pack(data, PackLocation{15, 2}, linker.inversion);
-        Pack(data, PackLocation{17, 7}, prob_stay);
-        Pack(data, PackLocation{24, 5}, linker.loop_length - 1);
+        Pack(data, PackLocation{8, 4}, (uint64_t)linker.root_note);
+        Pack(data, PackLocation{12, 3}, (uint64_t)linker.chord_index);
+        Pack(data, PackLocation{15, 2}, (uint64_t)linker.inversion);
+        Pack(data, PackLocation{17, 7}, linker.stay_prob);
+        Pack(data, PackLocation{24, 5}, (uint64_t)linker.loop_length - 1);
         Pack(data, PackLocation{29, 1}, linker.is_locked);
         Pack(data, PackLocation{30, 8}, slew_amount);
+        Pack(data, PackLocation{38, 7}, linker.dejavu);
+        Pack(data, PackLocation{45, 7}, linker.branch_prob);
         return data;
     }
 
@@ -169,10 +184,12 @@ public:
         linker.root_note = Unpack(data, PackLocation{8, 4});
         linker.chord_index = Unpack(data, PackLocation{12, 3});
         linker.inversion = Unpack(data, PackLocation{15, 2});
-        prob_stay = Unpack(data, PackLocation{17, 7});
+        linker.stay_prob = Unpack(data, PackLocation{17, 7});
         linker.loop_length = Unpack(data, PackLocation{24, 5}) + 1;
         linker.is_locked = Unpack(data, PackLocation{29, 1});
         slew_amount = Unpack(data, PackLocation{30, 8});
+        linker.dejavu = Unpack(data, PackLocation{38, 7});
+        linker.branch_prob = Unpack(data, PackLocation{45, 7});
     }
 
 protected:
@@ -189,80 +206,12 @@ protected:
 
 private:
     SubHLinker &linker = SubHLinker::get();
-    int cursor;
-    int page;
-    int prob_stay = 80;
-    int slew_amount;
+    int8_t cursor;
+    uint8_t page;
+    uint8_t slew_amount;
     int current_cv[2];
 
-    // State tracking for efficiency
-    int last_chord, last_inv, last_scale, last_root;
-
-    const int16_t sub_semis[17] = {
-        0, 0, -1536, -2435, -3072, -3566, -3970, -4312, -4608, -4869, -5102, -5314, -5506, -5684, -5848, -6001, -6144
-    };
-
-    void AdvanceSequencer() {
-        if (linker.is_locked) {
-            linker.seq_step = (linker.seq_step + 1) % linker.loop_length;
-            linker.chord_index = linker.seq_history[linker.seq_step];
-        } else {
-            int rnd = random(100);
-            if (rnd < prob_stay) {
-                // Stay
-            } else if (rnd < prob_stay + (100-prob_stay)*0.6) {
-                linker.chord_index = (linker.chord_index + 1) % 7;
-            } else {
-                linker.chord_index = random(7);
-            }
-            linker.seq_step = (linker.seq_step + 1) % 32;
-            linker.seq_history[linker.seq_step % linker.loop_length] = linker.chord_index;
-        }
-    }
-
-    void UpdateSubharmonics(int chord_idx, int inv) {
-        const OC::Scale &scale = OC::Scales::GetScale(linker.scale);
-
-        int chord_notes[4];
-        chord_notes[0] = 0;
-        chord_notes[1] = 2;
-        chord_notes[2] = 4;
-        chord_notes[3] = 6;
-
-        for(int i=0; i<4; ++i) chord_notes[i] = (chord_notes[i] + chord_idx) % scale.num_notes;
-
-        for(int i=0; i<inv; ++i) {
-            int first = chord_notes[0];
-            chord_notes[0] = chord_notes[1];
-            chord_notes[1] = chord_notes[2];
-            chord_notes[2] = chord_notes[3];
-            chord_notes[3] = first;
-        }
-
-        for(int i=0; i<4; ++i) {
-            int target_rel_semi = scale.notes[chord_notes[i]];
-            linker.divisions[i] = FindClosestSubharmonic(target_rel_semi);
-        }
-    }
-
-    int FindClosestSubharmonic(int target_rel_semi) {
-        int best_n = 1;
-        int min_err = 10000;
-
-        for (int n=1; n<=16; ++n) {
-            int rel = (sub_semis[n] / 128);
-            rel = ((rel % 12) + 12) % 12;
-
-            int err = abs(rel - target_rel_semi);
-            if (err > 6) err = 12 - err;
-
-            if (err < min_err) {
-                min_err = err;
-                best_n = n;
-            }
-        }
-        return best_n;
-    }
+    int8_t last_chord, last_inv, last_scale, last_root;
 
     void DrawInterface() {
         gfxHeader(page == 0 ? "SubH Harm" : "SubH Rhy");
@@ -287,17 +236,24 @@ private:
             gfxPrint(slew_amount);
             if (cursor == SLEW) gfxCursor(32, 49, 28);
         } else {
-            gfxPrint(1, 15, "Stay: ");
-            gfxPrint(prob_stay);
-            gfxPrint("%");
-            if (cursor == SEQ_PROB) gfxCursor(30, 23, 30);
+            gfxPrint(1, 15, "Sty:");
+            gfxPrint(linker.stay_prob);
+            if (cursor == STAY) gfxCursor(25, 23, 18);
 
-            gfxPrint(1, 30, "Loop: ");
+            gfxPrint(45, 15, "DV:");
+            gfxPrint(linker.dejavu);
+            if (cursor == DEJAVU) gfxCursor(63, 23, 18);
+
+            gfxPrint(1, 28, "Brn:");
+            gfxPrint(linker.branch_prob);
+            if (cursor == BRANCH) gfxCursor(25, 36, 18);
+
+            gfxPrint(45, 28, "Len:");
             gfxPrint(linker.loop_length);
-            if (cursor == LOOP_LEN) gfxCursor(37, 38, 15);
+            if (cursor == LOOP_LEN) gfxCursor(69, 36, 12);
 
-            gfxPrint(1, 45, linker.is_locked ? "LOCKED" : "EVOLVE");
-            if (cursor == LOOP_LOCK) gfxCursor(1, 53, 40);
+            gfxPrint(1, 41, linker.is_locked ? "LOCKED" : "EVOLVE");
+            if (cursor == LOOP_LOCK) gfxCursor(1, 49, 40);
         }
 
         gfxPrint(1, 55, "/");

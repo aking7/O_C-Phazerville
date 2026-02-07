@@ -28,16 +28,19 @@
 struct SubHLinker {
     static SubHLinker *instance;
 
-    int scale;
-    int root_note;
-    int chord_index;
-    int inversion;
+    uint8_t scale;
+    int8_t root_note;
+    int8_t chord_index;
+    int8_t inversion;
     uint8_t divisions[4];
 
-    int seq_step;
+    uint8_t seq_step;
     uint8_t seq_history[32];
     bool is_locked;
-    int loop_length;
+    uint8_t loop_length;
+    uint8_t dejavu;
+    uint8_t branch_prob;
+    uint8_t stay_prob;
 
     bool registered[2];
 
@@ -52,6 +55,9 @@ struct SubHLinker {
         for(int i=0; i<32; ++i) seq_history[i] = 0;
         is_locked = false;
         loop_length = 4;
+        dejavu = 0;
+        branch_prob = 50;
+        stay_prob = 50;
 
         registered[0] = false;
         registered[1] = false;
@@ -73,6 +79,9 @@ struct SubHLinker {
     bool IsLinked() {
         return (registered[0] && registered[1]);
     }
+
+    void UpdateSubharmonics(int chord_idx, int inv);
+    void AdvanceSequencer();
 };
 
 #endif
