@@ -31,6 +31,8 @@
  * with bits from benirose, and probably others!
  */
 
+#include "../util/clkdivmult.h"
+
 class TwoRings : public HemisphereApplet {
 public:
 
@@ -49,7 +51,8 @@ public:
         CVMODE2,
         OUT_A,
         OUT_B,
-        LAST_SETTING = OUT_B
+        CLK_DIV,
+        LAST_SETTING = CLK_DIV
     };
 
     enum OutputMode {
@@ -104,13 +107,14 @@ public:
     }
 
     void Reset() {
+      clk_div.Reset();
       if (reset_active) {
         ForEachChannel(ch) reg[ch] = reg_snap[ch];
       }
     }
 
     void Controller() {
-        bool clk = Clock(0);
+        bool clk = clk_div.Tick(Clock(0));
         if (clk) StartADCLag(0);
         bool update_cv = EndOfADCLag(0);
 
@@ -329,6 +333,9 @@ public:
         case SLEW:
             smoothing = constrain(smoothing + direction, 0, 127);
             break;
+        case CLK_DIV:
+            clk_div.Adjust(direction);
+            break;
 
         default: break;
         }
@@ -346,10 +353,11 @@ public:
         Pack(data, PackLocation {37,4}, cvmode[1]);
         Pack(data, PackLocation {41,6}, smoothing);
 
+        Pack(data, PackLocation {47,1}, rotate_right);
         Pack(data, PackLocation {48,4}, qselect[0]);
         Pack(data, PackLocation {52,4}, qselect[1]);
 
-        Pack(data, PackLocation {56,1}, rotate_right);
+        Pack(data, PackLocation {57,7}, clk_div.steps + 32);
 
         // TODO: utilize enigma's global turing machine storage for the registers
 
@@ -368,12 +376,13 @@ public:
         smoothing = Unpack(data, PackLocation {41,6});
         smoothing = constrain(smoothing, 0, 127);
 
+        rotate_right = Unpack(data, PackLocation {47,1});
         qselect[0] = Unpack(data, PackLocation {48,4});
         qselect[1] = Unpack(data, PackLocation {52,4});
         CONSTRAIN(qselect[0], 0, DAC_CHANNEL_LAST - 1);
         CONSTRAIN(qselect[1], 0, DAC_CHANNEL_LAST - 1);
 
-        rotate_right = Unpack(data, PackLocation {56,1});
+        clk_div.Set(Unpack(data, PackLocation {57,7}) - 32);
     }
 
 protected:
@@ -392,6 +401,7 @@ protected:
 
 private:
     int cursor; // TM2Cursor
+    ClkDivMult clk_div;
 
     int root_note = 0;
 
@@ -564,11 +574,11 @@ private:
         case CVMODE2:
         case OUT_A:
         case OUT_B:
+        case CLK_DIV:
             ForEachChannel(ch) {
                 DrawCVMode(ch);
                 DrawOutputMode(ch);
             }
-
             break;
         }
 
@@ -600,6 +610,21 @@ private:
             case OUT_B:
                 gfxCursor(14 + 34*(cursor-OUT_A), 43, 10, outmode_names[outmode[cursor-OUT_A]]);
                 break;
+            case CLK_DIV: {
+                const int s = clk_div.steps;
+                gfxPrint(1, 45, "Div ");
+                if (s > 0) {
+                    gfxPrint("/");
+                    gfxPrint(s);
+                } else if (s < 0) {
+                    gfxPrint("x");
+                    gfxPrint(-s);
+                } else {
+                    gfxPrint("off");
+                }
+                gfxCursor(1, 53, 40, "Clock Division");
+                break;
+            }
 
             default: break;
         }
