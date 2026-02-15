@@ -116,18 +116,22 @@ public:
     int sub_interval
       = subharmonic_semitones[linker.divisions[hemisphere]] * 128;
 
+    // SLEW LOGIC EXPLAINED:
+    // We only apply slew to the Main VCO pitch (Output 1).
+    // This creates the portamento/glide effect between notes.
     if (slew_amount == 0) {
       current_cv[0] = vco_pitch;
-      current_cv[1] = vco_pitch - sub_interval;
     } else {
       // Smoothly morph values
       int32_t s = slew_amount;
       int target_vco = vco_pitch;
-      int target_sub = vco_pitch - sub_interval;
 
+      // Exponential moving average for smooth slide
       current_cv[0] = (current_cv[0] * (256 - s) + target_vco * s) >> 8;
-      current_cv[1] = (current_cv[1] * (256 - s) + target_sub * s) >> 8;
     }
+
+    // SUB tracks the Main VCO pitch (slewed or not) but applies the Division
+    current_cv[1] = current_cv[0] - sub_interval;
 
     Out(0, current_cv[0]);
     Out(1, current_cv[1]);
