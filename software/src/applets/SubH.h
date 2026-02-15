@@ -255,32 +255,33 @@ private:
       gfxPrint(chord_names[linker.chord_index]);
       if (cursor == CHORD) gfxCursor(37, 36, 18);
 
-      gfxPrint(1, 41, "Inv: ");
+      gfxPrint(1, 40, "Inv:");
       gfxPrint(linker.inversion);
-      if (cursor == INVERSION) gfxCursor(25, 49, 10);
+      if (cursor == INVERSION) gfxCursor(25, 48, 10);
 
-      gfxPrint(32, 41, "Slw:");
+      gfxPrint(32, 40, "Slw:");
       gfxPrint(slew_amount);
-      if (cursor == SLEW) gfxCursor(32, 49, 28);
+      if (cursor == SLEW) gfxCursor(32, 48, 28);
     } else {
+      // Stacked Layout for Page 1
       gfxPrint(1, 15, "Sty:");
       gfxPrint(pad(100, linker.stay_prob), linker.stay_prob);
-      if (cursor == STAY) gfxCursor(25, 23, 18);
+      if (cursor == STAY) gfxCursor(32, 23, 18);
 
-      gfxPrint(45, 15, "DV:");
+      gfxPrint(1, 25, "Deju:");
       gfxPrint(pad(100, linker.dejavu), linker.dejavu);
-      if (cursor == DEJAVU) gfxCursor(63, 23, 18);
+      if (cursor == DEJAVU) gfxCursor(32, 33, 18);
 
-      gfxPrint(1, 28, "Brn:");
+      gfxPrint(1, 35, "Brnc:");
       gfxPrint(pad(100, linker.branch_prob), linker.branch_prob);
-      if (cursor == BRANCH) gfxCursor(25, 36, 18);
+      if (cursor == BRANCH) gfxCursor(32, 43, 18);
 
-      gfxPrint(45, 28, "Len:");
+      gfxPrint(1, 45, "Len :");
       gfxPrint(pad(10, linker.loop_length), linker.loop_length);
-      if (cursor == LOOP_LEN) gfxCursor(69, 36, 12);
+      if (cursor == LOOP_LEN) gfxCursor(32, 53, 12);
 
-      gfxPrint(1, 41, linker.is_locked ? "LOCKED" : "EVOLVE");
-      if (cursor == LOOP_LOCK) gfxCursor(1, 49, 40);
+      gfxPrint(1, 55, linker.is_locked ? "LOCKED" : "EVOLVE");
+      if (cursor == LOOP_LOCK) gfxCursor(1, 63, 40);
     }
 
     gfxPrint(1, 55, "/");
