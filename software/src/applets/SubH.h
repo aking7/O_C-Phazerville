@@ -102,17 +102,35 @@ public:
       last_root = linker.root_note;
     }
 
-    ForEachChannel(ch) {
-      int target = (linker.divisions[ch + (hemisphere * 2)] - 1) * 512;
-      if (slew_amount == 0) {
-        current_cv[ch] = target;
-      } else {
-        // Smoothly morph to target
-        int32_t s = slew_amount;
-        current_cv[ch] = (current_cv[ch] * (256 - s) + target * s) >> 8;
-      }
-      Out(ch, current_cv[ch]);
+    // Re-implemented Output Logic for 2-Voice System
+    // Each Hemisphere controls one "Voice" (VCO + Sub)
+    // Output 1 (A/C): VCO Pitch (Chord Note)
+    // Output 2 (B/D): Sub Pitch (VCO Pitch - Subharmonic Interval)
+
+    // Channel indices relative to this hemisphere (0 and 1)
+    // ch 0 = Output A (Left) or C (Right) -> VCO
+    // ch 1 = Output B (Left) or D (Right) -> SUB
+
+    int vco_pitch = linker.chord_pitches[hemisphere]
+      * 128; // Convert semitones to DAC steps (128 per semitone)
+    int sub_interval
+      = subharmonic_semitones[linker.divisions[hemisphere]] * 128;
+
+    if (slew_amount == 0) {
+      current_cv[0] = vco_pitch;
+      current_cv[1] = vco_pitch - sub_interval;
+    } else {
+      // Smoothly morph values
+      int32_t s = slew_amount;
+      int target_vco = vco_pitch;
+      int target_sub = vco_pitch - sub_interval;
+
+      current_cv[0] = (current_cv[0] * (256 - s) + target_vco * s) >> 8;
+      current_cv[1] = (current_cv[1] * (256 - s) + target_sub * s) >> 8;
     }
+
+    Out(0, current_cv[0]);
+    Out(1, current_cv[1]);
   }
 
   void View() {
