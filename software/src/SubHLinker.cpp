@@ -3,6 +3,11 @@
 
 SubHLinker *SubHLinker::instance = 0;
 
+// For each pitch class (semitones above the VCO), the divisor n (1-16) whose
+// subharmonic f/n lands closest to that pitch class, octave-folded:
+// n=15 -> +112c, n=7 -> +231c, n=13 -> +359c, n=3 -> +498c, n=11 -> +649c,
+// n=5 -> +814c, n=9 -> +996c. Divisors above 13 need CV below -3V, so they
+// clamp to 13 on hardware without a 20Vpp output range.
 static const uint8_t best_n_for_semi[12] = {1, 15, 7, 7, 13, 3, 11, 11, 5, 5, 9, 1};
 
 void SubHLinker::UpdateSubharmonics(int chord_idx, int inv) {

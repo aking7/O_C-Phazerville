@@ -29,7 +29,6 @@ public:
         CHORD,
         INVERSION,
         SLEW,
-        PAGE,
         STAY,
         DEJAVU,
         BRANCH,
@@ -38,12 +37,19 @@ public:
         LAST_SETTING = LOOP_LOCK
     };
 
+    // The Subharmonicon's SUB CV inputs read -5V..+5V as divisor 16 down
+    // to 1 in 16 equal zones (see the MIDI CC table in the manual), with
+    // the SUB FREQ knob centered. One zone = 10V/16 = 0.625V.
+    static const int SUBH_ZONE = 960;     // 0.625V (1V = 1536)
+    static const int SUBH_5V   = 5 * ONE_OCTAVE;
+
     const char* applet_name() {
         return "SubH";
     }
     const uint8_t* applet_icon() { return PhzIcons::chordinate; }
 
     void Start() {
+        cursor = 0;
         page = 0;
         linker.Register(hemisphere);
 
@@ -99,7 +105,12 @@ public:
         }
 
         ForEachChannel(ch) {
-            int target = (linker.divisions[ch + (hemisphere * 2)] - 1) * 512;
+            // Target the center of the CV zone for this divisor. Divisor 1
+            // sits at +4.69V, 8 at +0.31V, 16 at -4.69V. Note: hardware with
+            // a -3V floor clamps divisors above 13.
+            int div = linker.divisions[ch + (hemisphere * 2)];
+            int target = (16 - div) * SUBH_ZONE + (SUBH_ZONE / 2) - SUBH_5V;
+            target = constrain(target, HEMISPHERE_MIN_CV, HEMISPHERE_MAX_CV);
             if (slew_amount == 0) {
                 current_cv[ch] = target;
             } else {
@@ -116,9 +127,7 @@ public:
     }
 
     void OnButtonPress() {
-        if (cursor == PAGE) {
-            page = 1 - page;
-        } else if (cursor == LOOP_LOCK) {
+        if (cursor == LOOP_LOCK) {
             linker.is_locked = !linker.is_locked;
         } else {
             CursorToggle();
@@ -128,6 +137,7 @@ public:
     void OnEncoderMove(int direction) {
         if (!EditMode()) {
             MoveCursor(cursor, direction, LAST_SETTING);
+            page = (cursor >= STAY) ? 1 : 0;
             return;
         }
 
@@ -217,56 +227,53 @@ private:
         gfxHeader(page == 0 ? "SubH Harm" : "SubH Rhy");
 
         if (page == 0) {
+            // Short scale names are 4 chars (24px), root note up to 2 chars
             gfxPrint(1, 15, OC::scale_names_short[linker.scale]);
-            if (cursor == SCALE) gfxCursor(1, 23, 30);
+            if (cursor == SCALE) gfxCursor(1, 23, 24);
 
-            gfxPrint(35, 15, OC::Strings::note_names_unpadded[linker.root_note]);
-            if (cursor == ROOT) gfxCursor(35, 23, 12);
+            gfxPrint(34, 15, OC::Strings::note_names_unpadded[linker.root_note]);
+            if (cursor == ROOT) gfxCursor(34, 23, 12);
 
-            gfxPrint(1, 28, "Chord: ");
+            gfxPrint(1, 25, "Chrd:");
             const char* chord_names[] = {"I", "ii", "iii", "IV", "V", "vi", "vii"};
             gfxPrint(chord_names[linker.chord_index]);
-            if (cursor == CHORD) gfxCursor(37, 36, 18);
+            if (cursor == CHORD) gfxCursor(31, 33, 18);
 
-            gfxPrint(1, 41, "Inv: ");
+            gfxPrint(1, 35, "Inv:");
             gfxPrint(linker.inversion);
-            if (cursor == INVERSION) gfxCursor(25, 49, 10);
+            if (cursor == INVERSION) gfxCursor(25, 43, 7);
 
-            gfxPrint(32, 41, "Slw:");
+            gfxPrint(1, 45, "Slew:");
             gfxPrint(slew_amount);
-            if (cursor == SLEW) gfxCursor(32, 49, 28);
+            if (cursor == SLEW) gfxCursor(31, 53, 18);
         } else {
-            gfxPrint(1, 15, "Sty:");
+            gfxPrint(1, 15, "Stay:");
             gfxPrint(linker.stay_prob);
-            if (cursor == STAY) gfxCursor(25, 23, 18);
+            if (cursor == STAY) gfxCursor(31, 23, 18);
 
-            gfxPrint(45, 15, "DV:");
+            gfxPrint(1, 25, "DjVu:");
             gfxPrint(linker.dejavu);
-            if (cursor == DEJAVU) gfxCursor(63, 23, 18);
+            if (cursor == DEJAVU) gfxCursor(31, 33, 18);
 
-            gfxPrint(1, 28, "Brn:");
+            gfxPrint(1, 35, "Brch:");
             gfxPrint(linker.branch_prob);
-            if (cursor == BRANCH) gfxCursor(25, 36, 18);
+            if (cursor == BRANCH) gfxCursor(31, 43, 18);
 
-            gfxPrint(45, 28, "Len:");
+            gfxPrint(1, 45, "Len:");
             gfxPrint(linker.loop_length);
-            if (cursor == LOOP_LEN) gfxCursor(69, 36, 12);
+            if (cursor == LOOP_LEN) gfxCursor(25, 53, 12);
 
-            gfxPrint(1, 41, linker.is_locked ? "LOCKED" : "EVOLVE");
-            if (cursor == LOOP_LOCK) gfxCursor(1, 49, 40);
+            gfxPrint(40, 45, linker.is_locked ? "LOCK" : "EVOL");
+            if (cursor == LOOP_LOCK) gfxCursor(40, 53, 24);
         }
 
-        gfxPrint(1, 55, "/");
-        gfxPrint(linker.divisions[0 + hemisphere*2]);
-        gfxPrint(32, 55, "/");
+        // This hemisphere's two divisors, e.g. "4/16"
+        gfxPrint(1, 55, linker.divisions[0 + hemisphere*2]);
+        gfxPrint("/");
         gfxPrint(linker.divisions[1 + hemisphere*2]);
 
-        gfxPrint(50, 55, page + 1);
-        gfxPrint("/2");
-        if (cursor == PAGE) gfxCursor(50, 63, 12);
-
         if (linker.IsLinked()) {
-            gfxIcon(55, 1, LINK_ICON);
+            gfxIcon(55, 55, LINK_ICON);
         }
     }
 };
