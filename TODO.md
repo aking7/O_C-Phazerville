@@ -37,6 +37,8 @@ TODO (Roadmap)
 * Tetris
 
 # [DONE]
+* SubH: rework to match hardware — drive 1 VCO/side as pitch + SUB divisor
+  (Subharmonicon has only 2 SUB CV inputs, one per VCO)
 * MIDI mapping for param modulation sources
 - multi-mode (HP, BP, LP) for Filt/Fold
 * Quadrants Preset Bank switching
