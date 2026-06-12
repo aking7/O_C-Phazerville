@@ -40,8 +40,12 @@ void SubHLinker::BuildChordPCs(int degree, bool is_sec_dom, int pc[4]) const {
         // Stacked thirds on the scale degree. Triads double the root; the
         // doubled tone voices as a pure octave undertone and avoids the
         // tritone, so triads land on pure undertones everywhere.
+        // Sus colors swap the 3rd for the diatonic 2nd or 4th.
+        int third = degree + 2;
+        if (this->sus_now == 1) third = degree + 1;
+        if (this->sus_now == 2) third = degree + 3;
         pc[0] = DEG_PC(degree);
-        pc[1] = DEG_PC(degree + 2);
+        pc[1] = DEG_PC(third);
         pc[2] = DEG_PC(degree + 4);
         pc[3] = this->seventh ? DEG_PC(degree + 6) : pc[0];
     }
@@ -97,12 +101,8 @@ void SubHLinker::VoiceChord(const int pc[4], Voicing &v) const {
     v.pitch[0] = fundA * 128;
     v.pitch[1] = fundB * 128;
 
-    // Sounding notes, low to high
-    int s4[4] = {bass, subB, fundA, fundB};
-    for(int i=0; i<3; ++i)
-        for(int j=i+1; j<4; ++j)
-            if (s4[j] < s4[i]) { int t = s4[i]; s4[i] = s4[j]; s4[j] = t; }
-    for(int i=0; i<4; ++i) v.notes[i] = s4[i];
+    v.pairA[0] = bass;  v.pairA[1] = fundA;
+    v.pairB[0] = subB;  v.pairB[1] = fundB;
 }
 
 // Voice the current chord. With a fixed inversion, the chord tones rotate
@@ -125,16 +125,39 @@ void SubHLinker::UpdateSubharmonics(int chord_idx, bool is_sec_dom, int inv) {
         Voicing v;
         VoiceChord(pc, v);
 
+        int s4[4] = {v.pairA[0], v.pairA[1], v.pairB[0], v.pairB[1]};
+        for(int a=0; a<3; ++a)
+            for(int b=a+1; b<4; ++b)
+                if (s4[b] < s4[a]) { int t = s4[a]; s4[a] = s4[b]; s4[b] = t; }
         int cost = 0;
-        for(int j=0; j<4; ++j) cost += abs(v.notes[j] - this->sounding[j]);
+        for(int j=0; j<4; ++j) cost += abs(s4[j] - this->sounding[j]);
         if (cost < best_cost) { best_cost = cost; best = v; }
+    }
+
+    // Hold: the upper pair (VCO 2) keeps its previous voicing through this
+    // chord change -- pedal tones that suspend over the new bass and
+    // resolve on a later change
+    if (this->hold_now) {
+        best.div[1] = this->divisions[1];
+        best.pitch[1] = this->vco_pitch[1];
+        best.pairB[0] = this->pair_notes[1][0];
+        best.pairB[1] = this->pair_notes[1][1];
     }
 
     for(int i=0; i<2; ++i) {
         this->divisions[i] = best.div[i];
         this->vco_pitch[i] = best.pitch[i];
     }
-    for(int i=0; i<4; ++i) this->sounding[i] = best.notes[i];
+    this->pair_notes[0][0] = best.pairA[0];
+    this->pair_notes[0][1] = best.pairA[1];
+    this->pair_notes[1][0] = best.pairB[0];
+    this->pair_notes[1][1] = best.pairB[1];
+
+    int s4[4] = {best.pairA[0], best.pairA[1], best.pairB[0], best.pairB[1]};
+    for(int i=0; i<3; ++i)
+        for(int j=i+1; j<4; ++j)
+            if (s4[j] < s4[i]) { int t = s4[i]; s4[i] = s4[j]; s4[j] = t; }
+    for(int i=0; i<4; ++i) this->sounding[i] = s4[i];
 }
 
 // ========================= Progression engine ==============================
@@ -154,6 +177,13 @@ static const uint8_t func_next[7][4] = {
 
 void SubHLinker::AdvanceSequencer() {
     int eff_home = constrain(this->home + this->cv_home, 0, 100);
+
+    // Roll the per-chord colors. These re-roll on every advance, so even a
+    // locked loop keeps living: frozen progression, changing voicings.
+    this->hold_now = ((int)random(100) < this->hold);
+    this->sus_now = (this->sus_mode == 3)
+        ? (((int)random(100) < 33) ? 1 + (int)random(2) : 0)
+        : this->sus_mode;
 
     int dv_rnd = (int)random(100);
     bool use_history = this->is_locked || (dv_rnd < this->dejavu);

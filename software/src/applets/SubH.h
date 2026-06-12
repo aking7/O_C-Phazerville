@@ -28,12 +28,15 @@ public:
         ROOT,
         CHORD,
         SEVENTH,
+        SUS,
         INVERSION,
         HOME,
         SECDOM,
         DRIFT,
+        HOLD,
         OCTAVE,
         SLEW,
+        CLOCK_DIV,
         STAY,
         DEJAVU,
         BRANCH,
@@ -70,6 +73,9 @@ public:
             linker.inversion = SubHLinker::INV_AUTO;
             linker.use_sec_dom = false;
             linker.drift = 0;
+            linker.sus_mode = 0;
+            linker.hold = 0;
+            linker.clock_div = 1;
         }
 
         for(int i=0; i<2; ++i) current_cv[i] = 0;
@@ -106,9 +112,13 @@ public:
         }
 
         if (Clock(0)) {
-            // Only the "primary" registered side advances the shared sequencer
+            // Only the "primary" registered side advances the shared
+            // sequencer, every clock_div clocks
             if (!linker.registered[0] || hemisphere == 0) {
-                linker.AdvanceSequencer();
+                if (++linker.clock_count >= linker.clock_div) {
+                    linker.clock_count = 0;
+                    linker.AdvanceSequencer();
+                }
             }
         }
 
@@ -117,6 +127,7 @@ public:
             linker.seq_step = 0;
             linker.chord_index = 0;
             linker.sec_dom = false;
+            linker.clock_count = 0;
         }
 
         int current_chord = (linker.chord_index + chord_cv + 7) % 7;
@@ -208,14 +219,23 @@ public:
             linker.inversion = (linker.inversion + direction + 5) % 5;
             last_chord = -1; // re-voice
             break;
+        case SUS:
+            linker.sus_mode = constrain(linker.sus_mode + direction, 0, 3);
+            break;
         case HOME:
             linker.home = constrain(linker.home + direction, 0, 100);
             break;
         case DRIFT:
             linker.drift = constrain(linker.drift + direction, 0, 100);
             break;
+        case HOLD:
+            linker.hold = constrain(linker.hold + direction, 0, 100);
+            break;
         case OCTAVE:
             linker.octave = constrain(linker.octave + direction, -2, 2);
+            break;
+        case CLOCK_DIV:
+            linker.clock_div = constrain(linker.clock_div + direction, 1, 8);
             break;
         case STAY:
             linker.stay_prob = constrain(linker.stay_prob + direction, 0, 100);
@@ -237,9 +257,9 @@ public:
         }
     }
 
-    // Probabilities are stored in 4% steps (5 bits each) to fit everything
-    // in 64 bits with room to grow. Booleans are stored inverted and octave
-    // in two's complement, so all-zero data decodes to the defaults.
+    // 64 of 64 bits used. Stay/Home store in 4% steps; DjVu/Brch/Drft/Hold
+    // in 7% steps; Slew in 16 steps. Booleans are stored inverted and
+    // octave in two's complement, so all-zero data decodes to the defaults.
     uint64_t OnDataRequest() {
         uint64_t data = 0;
         Pack(data, PackLocation{0, 8}, linker.scale);
@@ -247,16 +267,19 @@ public:
         Pack(data, PackLocation{12, 3}, (uint8_t)linker.chord_index);
         Pack(data, PackLocation{15, 3}, (uint8_t)linker.inversion);
         Pack(data, PackLocation{18, 5}, (uint8_t)(linker.stay_prob / 4));
-        Pack(data, PackLocation{23, 5}, (uint8_t)(linker.dejavu / 4));
-        Pack(data, PackLocation{28, 5}, (uint8_t)(linker.branch_prob / 4));
-        Pack(data, PackLocation{33, 5}, (uint8_t)(linker.home / 4));
-        Pack(data, PackLocation{38, 5}, (uint8_t)(linker.loop_length - 1));
-        Pack(data, PackLocation{43, 1}, linker.is_locked);
-        Pack(data, PackLocation{44, 6}, (uint8_t)(slew_amount / 4));
-        Pack(data, PackLocation{50, 1}, !linker.seventh);
-        Pack(data, PackLocation{51, 3}, (uint8_t)(linker.octave & 0x07));
-        Pack(data, PackLocation{54, 1}, linker.use_sec_dom);
-        Pack(data, PackLocation{55, 5}, (uint8_t)(linker.drift / 4));
+        Pack(data, PackLocation{23, 5}, (uint8_t)(linker.home / 4));
+        Pack(data, PackLocation{28, 4}, (uint8_t)(linker.dejavu / 7));
+        Pack(data, PackLocation{32, 4}, (uint8_t)(linker.branch_prob / 7));
+        Pack(data, PackLocation{36, 4}, (uint8_t)(linker.drift / 7));
+        Pack(data, PackLocation{40, 4}, (uint8_t)(linker.hold / 7));
+        Pack(data, PackLocation{44, 5}, (uint8_t)(linker.loop_length - 1));
+        Pack(data, PackLocation{49, 1}, linker.is_locked);
+        Pack(data, PackLocation{50, 4}, (uint8_t)(slew_amount / 16));
+        Pack(data, PackLocation{54, 1}, !linker.seventh);
+        Pack(data, PackLocation{55, 3}, (uint8_t)(linker.octave & 0x07));
+        Pack(data, PackLocation{58, 1}, linker.use_sec_dom);
+        Pack(data, PackLocation{59, 3}, (uint8_t)(linker.clock_div - 1));
+        Pack(data, PackLocation{62, 2}, linker.sus_mode);
         return data;
     }
 
@@ -266,17 +289,20 @@ public:
         linker.chord_index = Unpack(data, PackLocation{12, 3});
         linker.inversion = constrain(Unpack(data, PackLocation{15, 3}), 0, SubHLinker::INV_AUTO);
         linker.stay_prob = Unpack(data, PackLocation{18, 5}) * 4;
-        linker.dejavu = Unpack(data, PackLocation{23, 5}) * 4;
-        linker.branch_prob = Unpack(data, PackLocation{28, 5}) * 4;
-        linker.home = Unpack(data, PackLocation{33, 5}) * 4;
-        linker.loop_length = Unpack(data, PackLocation{38, 5}) + 1;
-        linker.is_locked = Unpack(data, PackLocation{43, 1});
-        slew_amount = Unpack(data, PackLocation{44, 6}) * 4;
-        linker.seventh = !Unpack(data, PackLocation{50, 1});
-        int oct = Unpack(data, PackLocation{51, 3});
+        linker.home = Unpack(data, PackLocation{23, 5}) * 4;
+        linker.dejavu = constrain(Unpack(data, PackLocation{28, 4}) * 7, 0, 100);
+        linker.branch_prob = constrain(Unpack(data, PackLocation{32, 4}) * 7, 0, 100);
+        linker.drift = constrain(Unpack(data, PackLocation{36, 4}) * 7, 0, 100);
+        linker.hold = constrain(Unpack(data, PackLocation{40, 4}) * 7, 0, 100);
+        linker.loop_length = Unpack(data, PackLocation{44, 5}) + 1;
+        linker.is_locked = Unpack(data, PackLocation{49, 1});
+        slew_amount = Unpack(data, PackLocation{50, 4}) * 16;
+        linker.seventh = !Unpack(data, PackLocation{54, 1});
+        int oct = Unpack(data, PackLocation{55, 3});
         linker.octave = (oct <= 3) ? oct : oct - 8;
-        linker.use_sec_dom = Unpack(data, PackLocation{54, 1});
-        linker.drift = Unpack(data, PackLocation{55, 5}) * 4;
+        linker.use_sec_dom = Unpack(data, PackLocation{58, 1});
+        linker.clock_div = Unpack(data, PackLocation{59, 3}) + 1;
+        linker.sus_mode = Unpack(data, PackLocation{62, 2});
     }
 
 protected:
@@ -300,7 +326,7 @@ private:
 
     int8_t last_chord, last_inv, last_scale, last_root, last_secd;
 
-    static const int NUM_ROWS = 13;
+    static const int NUM_ROWS = 16;
 
     // Which display row each cursor stop lives on
     int CursorRow() {
@@ -308,16 +334,19 @@ private:
         case SCALE: case ROOT: return 0;
         case CHORD:     return 1;
         case SEVENTH:   return 2;
-        case INVERSION: return 3;
-        case HOME:      return 4;
-        case SECDOM:    return 5;
-        case DRIFT:     return 6;
-        case OCTAVE:    return 7;
-        case SLEW:      return 8;
-        case STAY:      return 9;
-        case DEJAVU:    return 10;
-        case BRANCH:    return 11;
-        default:        return 12; // LOOP_LEN, LOOP_LOCK
+        case SUS:       return 3;
+        case INVERSION: return 4;
+        case HOME:      return 5;
+        case SECDOM:    return 6;
+        case DRIFT:     return 7;
+        case HOLD:      return 8;
+        case OCTAVE:    return 9;
+        case SLEW:      return 10;
+        case CLOCK_DIV: return 11;
+        case STAY:      return 12;
+        case DEJAVU:    return 13;
+        case BRANCH:    return 14;
+        default:        return 15; // LOOP_LEN, LOOP_LOCK
         }
     }
 
@@ -342,53 +371,70 @@ private:
             gfxPrint(linker.seventh ? "On" : "Off");
             if (cursor == SEVENTH) gfxCursor(25, y+8, 18);
             break;
-        case 3:
+        case 3: {
+            const char* sus_names[] = {"Off", "2", "4", "Rnd"};
+            gfxPrint(1, y, "Sus:");
+            gfxPrint(sus_names[linker.sus_mode]);
+            if (cursor == SUS) gfxCursor(25, y+8, 18);
+            break;
+        }
+        case 4:
             gfxPrint(1, y, "Inv:");
             if (linker.inversion == SubHLinker::INV_AUTO) gfxPrint("Auto");
             else gfxPrint(linker.inversion);
             if (cursor == INVERSION) gfxCursor(25, y+8, 24);
             break;
-        case 4:
+        case 5:
             gfxPrint(1, y, "Home:");
             gfxPrint(linker.home);
             if (cursor == HOME) gfxCursor(31, y+8, 18);
             break;
-        case 5:
+        case 6:
             gfxPrint(1, y, "SecD:");
             gfxPrint(linker.use_sec_dom ? "On" : "Off");
             if (cursor == SECDOM) gfxCursor(31, y+8, 18);
             break;
-        case 6:
+        case 7:
             gfxPrint(1, y, "Drft:");
             gfxPrint(linker.drift);
             if (cursor == DRIFT) gfxCursor(31, y+8, 18);
             break;
-        case 7:
+        case 8:
+            gfxPrint(1, y, "Hold:");
+            gfxPrint(linker.hold);
+            if (cursor == HOLD) gfxCursor(31, y+8, 18);
+            break;
+        case 9:
             gfxPrint(1, y, "Oct:");
             gfxPrint(linker.octave);
             if (cursor == OCTAVE) gfxCursor(25, y+8, 12);
             break;
-        case 8:
+        case 10:
             gfxPrint(1, y, "Slew:");
             gfxPrint(slew_amount);
             if (cursor == SLEW) gfxCursor(31, y+8, 18);
             break;
-        case 9:
+        case 11:
+            gfxPrint(1, y, "Div:");
+            gfxPrint(linker.clock_div);
+            if (cursor == CLOCK_DIV) gfxCursor(25, y+8, 7);
+            break;
+        case 12:
             gfxPrint(1, y, "Stay:");
             gfxPrint(linker.stay_prob);
             if (cursor == STAY) gfxCursor(31, y+8, 18);
             break;
-        case 10:
+        case 13:
             gfxPrint(1, y, "DjVu:");
             gfxPrint(linker.dejavu);
             if (cursor == DEJAVU) gfxCursor(31, y+8, 18);
             break;
-        case 11:
+        case 14:
             gfxPrint(1, y, "Brch:");
             gfxPrint(linker.branch_prob);
             if (cursor == BRANCH) gfxCursor(31, y+8, 18);
             break;
-        case 12:
+        case 15:
             gfxPrint(1, y, "Len:");
             gfxPrint(linker.loop_length);
             if (cursor == LOOP_LEN) gfxCursor(25, y+8, 12);

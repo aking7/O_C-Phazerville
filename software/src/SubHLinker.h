@@ -54,6 +54,15 @@ struct SubHLinker {
     uint8_t home;         // tonic gravity % (functional moves + phrasing)
     bool use_sec_dom;     // approach new chords via their own dominant
     uint8_t drift;        // % chance to slip to a related key on a cadence
+    uint8_t sus_mode;     // 0=off, 1=sus2, 2=sus4, 3=random per chord
+    uint8_t hold;         // % chance the upper VCO pair holds through a
+                          // chord change (pedal tones / suspensions)
+
+    // Per-chord color decisions, rolled in AdvanceSequencer so they stay
+    // stable for the duration of each chord (and keep varying over a
+    // locked loop -- frozen progression, living voicings)
+    uint8_t sus_now;
+    bool hold_now;
 
     // --- Sequencer settings/state
     uint8_t seq_step;
@@ -63,6 +72,8 @@ struct SubHLinker {
     uint8_t dejavu;
     uint8_t branch_prob;
     uint8_t stay_prob;
+    uint8_t clock_div;        // advance every N clocks (1-8)
+    uint8_t clock_count;      // running divider state (not saved)
 
     // --- Performance CV, written each frame by the linked right side
     int16_t cv_transpose;  // o_C units, added to both VCO pitch outputs
@@ -72,6 +83,8 @@ struct SubHLinker {
     uint8_t divisions[2];  // SUB divisor per VCO (1-13)
     int16_t vco_pitch[2];  // fundamental pitch per VCO (o_C units)
     int8_t sounding[4];    // sounding chord tones (semitones), low to high
+    int8_t pair_notes[2][2];  // sounding notes per VCO pair {sub, fund},
+                              // kept separately so Hold can freeze pair 1
 
     bool registered[2];
 
@@ -86,6 +99,10 @@ struct SubHLinker {
         home = 50;
         use_sec_dom = false;
         drift = 0;
+        sus_mode = 0;
+        hold = 0;
+        sus_now = 0;
+        hold_now = false;
 
         seq_step = 0;
         for(int i=0; i<32; ++i) seq_history[i] = 0;
@@ -94,12 +111,15 @@ struct SubHLinker {
         dejavu = 0;
         branch_prob = 50;
         stay_prob = 50;
+        clock_div = 1;
+        clock_count = 0;
 
         cv_transpose = 0;
         cv_home = 0;
 
         for(int i=0; i<2; ++i) { divisions[i] = 1; vco_pitch[i] = 0; }
         for(int i=0; i<4; ++i) sounding[i] = 0;
+        for(int i=0; i<2; ++i) pair_notes[i][0] = pair_notes[i][1] = 0;
 
         registered[0] = false;
         registered[1] = false;
@@ -130,7 +150,8 @@ private:
     struct Voicing {
         uint8_t div[2];
         int16_t pitch[2];
-        int8_t notes[4];  // sounding semitones, sorted low to high
+        int8_t pairA[2];  // VCO 1's sounding notes {bass, fundamental}
+        int8_t pairB[2];  // VCO 2's sounding notes {undertone, fundamental}
     };
 
     void BuildChordPCs(int degree, bool is_sec_dom, int pc[4]) const;

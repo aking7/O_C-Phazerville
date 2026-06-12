@@ -53,12 +53,15 @@ Settings live in one scrolling list (four rows visible; a bar on the right edge 
 - **Root:** Set the root note of the scale — this is the key that **Home** gravitates toward.
 - **Chrd:** Select the base chord (I, ii, iii, etc.).
 - **7th:** Press the button to toggle between 7th chords (On) and triads (Off). Triads double the root instead of playing the 7th — they avoid the tritone, so every voice lands on a pure (just-intonation) undertone.
+- **Sus:** Suspended chord colors — Off, 2 (always sus2), 4 (always sus4), or Rnd (each new chord has a 1-in-3 chance of a random sus). Diatonic: the 3rd is swapped for the scale's 2nd or 4th. Dominants are never sus'd.
 - **Inv:** Chord inversion 0-3, or **Auto** (default): each chord change auditions all four inversions and keeps the one whose voices move least from the previous chord.
 - **Home:** Tonic gravity (0-100%). When the sequencer advances, this is the probability it follows a functional-harmony map instead of wandering: ii goes to V, V resolves to I, vii resolves to I, vi sets up ii/IV. It also scales the phrase cadencing (V into the last step of a Len-length phrase, I on the downbeat). At 0 the progression is a free random walk; at 100 it cadences constantly.
 - **SecD:** Press the button to toggle secondary dominants. When On, a move to a new chord may route through that chord's own dominant first (probability scales with Home).
 - **Drft:** Key drift (0-100%). On a cadence to I, this is the chance the key modulates a fifth or fourth along the circle of fifths. Root follows the drift.
+- **Hold:** Suspension probability (0-100%). On a chord change, this is the chance VCO 2's pair *keeps its previous notes* — pedal tones suspended over the new bass that resolve on a later change. Colors keep re-rolling even over a locked loop: frozen progression, living voicings.
 - **Oct:** Transpose the whole chord by -2 to +2 octaves. Both VCO pitches shift and the subs follow automatically, since each divisor is an interval below its own VCO.
 - **Slew:** Adjust the slew amount for smooth pitch/division changes.
+- **Div:** Clock divider (1-8): the progression advances every N clocks, so chords can move at half/quarter time against a fast master clock.
 - **Stay:** Probability (0-100%) that the sequencer stays on the current chord instead of advancing.
 - **DjVu:** Probability (0-100%) of recalling a chord from the sequence history instead of generating a new one.
 - **Brch:** When advancing, probability (0-100%) of jumping to a random chord instead of the next one.
