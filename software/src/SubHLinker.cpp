@@ -31,8 +31,8 @@ void SubHLinker::UpdateSubharmonics(int chord_idx, int inv) {
 
     for(int i=0; i<4; ++i) {
         int target_rel_semi = scale.notes[chord_notes[i]];
-        // Snap to closest 12-TET relative semitone
-        int rel = (target_rel_semi % 12);
+        // Scale notes are stored as semitone * 128; extract 0-11 pitch class
+        int rel = (target_rel_semi / 128) % 12;
         this->divisions[i] = best_n_for_semi[rel];
     }
 }
